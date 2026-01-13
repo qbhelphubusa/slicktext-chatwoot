@@ -10,24 +10,44 @@ app.post("/slicktext", async (req, res) => {
     const phone = req.body.from;
     const text = req.body.message;
 
-    await axios.post(
+    // 1️⃣ Create conversation
+    const convoRes = await axios.post(
       `${process.env.CHATWOOT_URL}/api/v1/accounts/${process.env.ACCOUNT_ID}/conversations`,
       {
         source_id: phone,
         inbox_id: Number(process.env.INBOX_ID),
-        contact: { phone_number: phone },
-        messages: [{ content: text, message_type: "incoming" }]
+        contact: {
+          phone_number: phone
+        }
       },
       {
         headers: {
-          Authorization: `Bearer ${process.env.CHATWOOT_TOKEN}`
+          Authorization: `Bearer ${process.env.CHATWOOT_TOKEN}`,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+
+    const conversationId = convoRes.data.id;
+
+    // 2️⃣ Create message
+    await axios.post(
+      `${process.env.CHATWOOT_URL}/api/v1/accounts/${process.env.ACCOUNT_ID}/conversations/${conversationId}/messages`,
+      {
+        content: text,
+        message_type: "incoming"
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.CHATWOOT_TOKEN}`,
+          "Content-Type": "application/json"
         }
       }
     );
 
     res.sendStatus(200);
   } catch (e) {
-    console.error(e.message);
+    console.error("❌ ERROR:", e.response?.data || e.message);
     res.sendStatus(500);
   }
 });
@@ -40,19 +60,25 @@ app.post("/chatwoot", async (req, res) => {
 
     await axios.post(
       "https://api.slicktext.com/v1/messages/send",
-      { to: phone, message: text },
+      {
+        to: phone,
+        message: text
+      },
       {
         headers: {
-          Authorization: `Bearer ${process.env.SLICKTEXT_API_KEY}`
+          Authorization: `Bearer ${process.env.SLICKTEXT_API_KEY}`,
+          "Content-Type": "application/json"
         }
       }
     );
 
     res.sendStatus(200);
   } catch (e) {
-    console.error(e.message);
+    console.error("❌ ERROR:", e.response?.data || e.message);
     res.sendStatus(500);
   }
 });
 
-app.listen(process.env.PORT || 3000);
+app.listen(process.env.PORT || 3000, () => {
+  console.log("🚀 Server running");
+});
