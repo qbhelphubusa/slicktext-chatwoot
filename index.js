@@ -1,33 +1,58 @@
 import express from "express";
-import fetch from "node-fetch";
+import axios from "axios";
 
 const app = express();
 app.use(express.json());
 
-app.post("/slicktext-webhook", async (req, res) => {
-  const sms = req.body;
+/* SlickText → Chatwoot */
+app.post("/slicktext", async (req, res) => {
+  try {
+    const phone = req.body.from;
+    const text = req.body.message;
 
-  await fetch(
-    `${process.env.CHATWOOT_URL}/api/v1/inboxes/${process.env.INBOX_ID}/contacts/${sms.phone}/conversations`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        api_access_token: process.env.CHATWOOT_TOKEN,
+    await axios.post(
+      `${process.env.CHATWOOT_URL}/api/v1/accounts/${process.env.ACCOUNT_ID}/conversations`,
+      {
+        source_id: phone,
+        inbox_id: Number(process.env.INBOX_ID),
+        contact: { phone_number: phone },
+        messages: [{ content: text, message_type: "incoming" }]
       },
-      body: JSON.stringify({
-        source_id: sms.phone,
-        messages: [
-          {
-            content: sms.message,
-            message_type: "incoming",
-          },
-        ],
-      }),
-    }
-  );
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.CHATWOOT_TOKEN}`
+        }
+      }
+    );
 
-  res.status(200).send("OK");
+    res.sendStatus(200);
+  } catch (e) {
+    console.error(e.message);
+    res.sendStatus(500);
+  }
+});
+
+/* Chatwoot → SlickText */
+app.post("/chatwoot", async (req, res) => {
+  try {
+    const text = req.body.content;
+    const phone = req.body.conversation.contact.phone_number;
+
+    await axios.post(
+      "https://api.slicktext.com/v1/messages/send",
+      { to: phone, message: text },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.SLICKTEXT_API_KEY}`
+        }
+      }
+    );
+
+    res.sendStatus(200);
+  } catch (e) {
+    console.error(e.message);
+    res.sendStatus(500);
+  }
 });
 
 app.listen(process.env.PORT || 3000);
