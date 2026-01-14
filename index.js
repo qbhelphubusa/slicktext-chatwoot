@@ -47,9 +47,9 @@ app.post("/slicktext", async (req, res) => {
       },
       {
         headers: {
-          Authorization: `Bearer ${process.env.CHATWOOT_TOKEN}`, // ✅ MUST BE THIS
-          "Content-Type": "application/json"
-        }
+  Authorization: `Bearer ${CHATWOOT_TOKEN}`, // ✅ NOT process.env
+  "Content-Type": "application/json"
+}
       }
     );
 
@@ -64,9 +64,9 @@ app.post("/slicktext", async (req, res) => {
       },
       {
         headers: {
-          Authorization: `Bearer ${process.env.CHATWOOT_TOKEN}`, // ✅ SAME HERE
-          "Content-Type": "application/json"
-        }
+  Authorization: `Bearer ${CHATWOOT_TOKEN}`, // ✅ NOT process.env
+  "Content-Type": "application/json"
+}
       }
     );
 
