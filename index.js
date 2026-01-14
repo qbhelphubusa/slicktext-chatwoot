@@ -35,7 +35,7 @@ app.post("/slicktext", async (req, res) => {
     const phone = normalizePhone(phoneRaw);
     console.log(`📞 Processing message from ${phone}: "${text}"`);
 
-    // ✅ CORRECT AUTHORIZATION: Bearer token
+    // ✅ CORRECT AUTHORIZATION: Bearer token from environment
     const convoRes = await axios.post(
       `${process.env.CHATWOOT_URL}/api/v1/accounts/${process.env.ACCOUNT_ID}/conversations`,
       {
@@ -47,9 +47,9 @@ app.post("/slicktext", async (req, res) => {
       },
       {
         headers: {
-  Authorization: `Bearer ${CHATWOOT_TOKEN}`, // ✅ NOT process.env
-  "Content-Type": "application/json"
-}
+          Authorization: `Bearer ${process.env.CHATWOOT_TOKEN}`, // ✅ CORRECT
+          "Content-Type": "application/json"
+        }
       }
     );
 
@@ -64,9 +64,9 @@ app.post("/slicktext", async (req, res) => {
       },
       {
         headers: {
-  Authorization: `Bearer ${CHATWOOT_TOKEN}`, // ✅ NOT process.env
-  "Content-Type": "application/json"
-}
+          Authorization: `Bearer ${process.env.CHATWOOT_TOKEN}`, // ✅ CORRECT
+          "Content-Type": "application/json"
+        }
       }
     );
 
