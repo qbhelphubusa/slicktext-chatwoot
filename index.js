@@ -37,7 +37,7 @@ app.post("/slicktext", async (req, res) => {
 
     // ✅ CORRECT AUTHORIZATION: Bearer token from environment
     const convoRes = await axios.post(
-      `https://app.chatwoot.com/api/v1/accounts/${process.env.ACCOUNT_ID}/conversations`,
+      `${process.env.CHATWOOT_URL}/api/v1/accounts/${process.env.ACCOUNT_ID}/conversations`,
       {
         source_id: phone,
         inbox_id: Number(process.env.INBOX_ID),
@@ -73,13 +73,9 @@ app.post("/slicktext", async (req, res) => {
     console.log(`✅ Message from ${phone} added to Chatwoot`);
     res.sendStatus(200);
   } catch (e) {
-  console.error("❌ FULL ERROR DETAILS:");
-  console.error("Message:", e.message);
-  console.error("Response data:", e.response?.data);
-  console.error("Status:", e.response?.status);
-  console.error("URL:", e.config?.url);
-  res.status(500).send("Processing failed");
-}
+    console.error("❌ SlickText → Chatwoot error:", e.response?.data || e.message);
+    res.status(500).send("Processing failed");
+  }
 });
 
 /* 🔼 Chatwoot → SlickText (Outgoing reply) */
@@ -120,13 +116,9 @@ app.post("/chatwoot", async (req, res) => {
     console.log("✅ Outgoing handled (SMS sending disabled)");
     res.sendStatus(200);
   } catch (e) {
-  console.error("❌ FULL ERROR DETAILS:");
-  console.error("Message:", e.message);
-  console.error("Response data:", e.response?.data);
-  console.error("Status:", e.response?.status);
-  console.error("URL:", e.config?.url);
-  res.status(500).send("Processing failed");
-}
+    console.error("❌ Chatwoot → SlickText error:", e.response?.data || e.message);
+    res.status(500).send("Send failed");
+  }
 });
 
 const PORT = process.env.PORT || 3000;
