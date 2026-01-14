@@ -1,3 +1,5 @@
+// Add this at the top of index.js (after imports)
+const CHATWOOT_TOKEN = "LSkgqEDpmWLP87nQnkMwYVtZ";
 import express from "express";
 import axios from "axios";
 
@@ -47,7 +49,7 @@ app.post("/slicktext", async (req, res) => {
       },
       {
         headers: {
-          Authorization: `Bearer ${process.env.CHATWOOT_TOKEN}`, // ✅ CORRECT
+          Authorization: `Bearer ${CHATWOOT_TOKEN}`, // ✅ CORRECT
           "Content-Type": "application/json"
         }
       }
@@ -64,7 +66,7 @@ app.post("/slicktext", async (req, res) => {
       },
       {
         headers: {
-          Authorization: `Bearer ${process.env.CHATWOOT_TOKEN}`, // ✅ CORRECT
+          Authorization: `Bearer ${CHATWOOT_TOKEN}`, // ✅ CORRECT
           "Content-Type": "application/json"
         }
       }
