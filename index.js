@@ -2,23 +2,17 @@ import express from "express";
 import axios from "axios";
 
 const app = express();
-
-/**
- * ------------------------
- * MIDDLEWARE
- * ------------------------
- */
 app.use(express.json());
 
-// Simple health check (Railway needs this)
+/**
+ * Health check (Railway)
+ */
 app.get("/", (req, res) => {
   res.status(200).send("OK");
 });
 
 /**
- * ------------------------
- * HELPERS
- * ------------------------
+ * Helpers
  */
 function normalizePhone(phone) {
   if (!phone) return null;
@@ -28,50 +22,33 @@ function normalizePhone(phone) {
 }
 
 /**
- * ------------------------
- * SLICKTEXT → CHATWOOT
- * Incoming SMS webhook
- * ------------------------
+ * ==============================
+ * SlickText → Chatwoot
+ * ==============================
  */
 app.post("/slicktext", async (req, res) => {
   console.log("📩 Received payload:", JSON.stringify(req.body));
 
   try {
     const { event, data } = req.body;
-
-    // Ignore non message events
-    if (event !== "message.received" || !data) {
-      console.log("ℹ️ Ignored non-SMS event");
-      return res.sendStatus(200);
-    }
+    if (event !== "message.received") return res.sendStatus(200);
 
     const phone = normalizePhone(data.from);
     const text = data.message;
 
-    if (!phone || !text) {
-      console.error("❌ Invalid payload");
-      return res.sendStatus(400);
-    }
-
     console.log(`📞 Incoming SMS from ${phone}: ${text}`);
 
     await axios.post(
-      `${process.env.CHATWOOT_URL}/api/v1/accounts/${process.env.ACCOUNT_ID}/conversations`,
+      `${process.env.CHATWOOT_URL}/api/v1/inboxes/${process.env.INBOX_ID}/messages`,
       {
-        inbox_id: Number(process.env.INBOX_ID),
         source_id: `slicktext_${phone}`,
-        contact: {
-          phone_number: phone
-        },
-        message: {
-          content: text
-        }
+        content: text,
+        content_type: "text"
       },
       {
         headers: {
-          api_access_token: process.env.CHATWOOT_TOKEN,
-          "Content-Type": "application/json",
-          Accept: "application/json"
+          Authorization: `Bearer ${process.env.CHATWOOT_INBOX_TOKEN}`,
+          "Content-Type": "application/json"
         }
       }
     );
@@ -80,47 +57,32 @@ app.post("/slicktext", async (req, res) => {
     res.sendStatus(200);
 
   } catch (err) {
-    console.error(
-      "❌ SlickText → Chatwoot error:",
-      err.response?.data || err.message
-    );
+    console.error("❌ SlickText → Chatwoot error:", err.response?.data || err.message);
     res.sendStatus(500);
   }
 });
 
 /**
- * ------------------------
- * CHATWOOT → SLICKTEXT
- * Outgoing agent replies
- * ------------------------
+ * ==============================
+ * Chatwoot → SlickText
+ * ==============================
  */
 app.post("/chatwoot", async (req, res) => {
   try {
-    // Only public outgoing messages
-    if (req.body.message_type !== "outgoing" || req.body.private === true) {
+    if (req.body.message_type !== "outgoing" || req.body.private) {
       return res.sendStatus(200);
     }
 
+    const phone = normalizePhone(req.body.conversation?.contact?.phone_number);
     const text = req.body.content;
-    const rawPhone = req.body.conversation?.contact?.phone_number;
-    const phone = normalizePhone(rawPhone);
-
-    if (!text || !phone) {
-      return res.sendStatus(400);
-    }
 
     console.log(`📤 Agent reply to ${phone}: ${text}`);
 
-    /**
-     * REAL SMS SEND (ENABLE IN PRODUCTION)
-     */
+    // ENABLE IN PRODUCTION
     /*
     await axios.post(
       "https://api.slicktext.com/v1/messages/send",
-      {
-        to: phone,
-        message: text
-      },
+      { to: phone, message: text },
       {
         headers: {
           Authorization: `Bearer ${process.env.SLICKTEXT_API_KEY}`,
@@ -130,25 +92,18 @@ app.post("/chatwoot", async (req, res) => {
     );
     */
 
-    console.log("✅ Outgoing message handled");
     res.sendStatus(200);
 
   } catch (err) {
-    console.error(
-      "❌ Chatwoot → SlickText error:",
-      err.response?.data || err.message
-    );
+    console.error("❌ Chatwoot → SlickText error:", err.message);
     res.sendStatus(500);
   }
 });
 
 /**
- * ------------------------
- * SERVER (Railway SAFE)
- * ------------------------
+ * Server
  */
 const PORT = process.env.PORT;
-
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
