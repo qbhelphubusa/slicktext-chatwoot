@@ -1,8 +1,5 @@
 import express from "express";
 import axios from "axios";
-import dotenv from "dotenv";
-
-dotenv.config();
 
 const app = express();
 app.use(express.json());
@@ -13,20 +10,12 @@ function normalizePhone(phone) {
   return "+" + clean;
 }
 
-/**
- * ==============================
- * SlickText → Chatwoot
- * ==============================
- */
 app.post("/slicktext", async (req, res) => {
   console.log("📩 Received payload:", JSON.stringify(req.body));
 
   try {
     const { event, data } = req.body;
-
-    if (event !== "message.received") {
-      return res.sendStatus(200);
-    }
+    if (event !== "message.received") return res.sendStatus(200);
 
     const phone = normalizePhone(data.from);
     const text = data.message;
@@ -37,13 +26,9 @@ app.post("/slicktext", async (req, res) => {
       `${process.env.CHATWOOT_URL}/api/v1/accounts/${process.env.ACCOUNT_ID}/conversations`,
       {
         inbox_id: Number(process.env.INBOX_ID),
-        source_id: `slicktext_${phone}`,   // ⭐ IMPORTANT LINE
-        contact: {
-          phone_number: phone
-        },
-        message: {
-          content: text
-        }
+        source_id: `slicktext_${phone}`,
+        contact: { phone_number: phone },
+        message: { content: text }
       },
       {
         headers: {
@@ -66,11 +51,6 @@ app.post("/slicktext", async (req, res) => {
   }
 });
 
-/**
- * ==============================
- * Chatwoot → SlickText
- * ==============================
- */
 app.post("/chatwoot", async (req, res) => {
   try {
     if (req.body.message_type !== "outgoing" || req.body.private) {
@@ -83,21 +63,6 @@ app.post("/chatwoot", async (req, res) => {
     const text = req.body.content;
 
     console.log(`📤 Agent reply to ${phone}: ${text}`);
-
-    // Enable this in production
-    /*
-    await axios.post(
-      "https://api.slicktext.com/v1/messages/send",
-      { to: phone, message: text },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.SLICKTEXT_API_KEY}`,
-          "Content-Type": "application/json"
-        }
-      }
-    );
-    */
-
     res.sendStatus(200);
 
   } catch (err) {
@@ -106,6 +71,6 @@ app.post("/chatwoot", async (req, res) => {
   }
 });
 
-app.listen(process.env.PORT || 3000, () => {
+app.listen(process.env.PORT || 8080, () => {
   console.log("🚀 Server running");
 });
