@@ -4,7 +4,7 @@ import axios from "axios";
 const app = express();
 app.use(express.json());
 
-// 🔹 Health check (Railway needs this)
+// Railway health check
 app.get("/", (req, res) => {
   res.status(200).send("OK");
 });
@@ -13,10 +13,9 @@ function normalizePhone(phone) {
   if (!phone) return null;
   let clean = phone.replace(/\D/g, "");
   if (!clean.startsWith("1")) clean = "1" + clean;
-  return "+" + clean;
+  return clean; // ❗ no +
 }
 
-// 🔹 SlickText → Chatwoot
 app.post("/slicktext", async (req, res) => {
   console.log("📩 Received payload:", JSON.stringify(req.body));
 
@@ -31,11 +30,12 @@ app.post("/slicktext", async (req, res) => {
 
     console.log(`📞 Incoming SMS from ${phone}: ${text}`);
 
+    const url = `${process.env.CHATWOOT_URL}/api/v1/inboxes/${process.env.INBOX_IDENTIFIER}/contacts/${encodeURIComponent(phone)}/messages`;
+
     await axios.post(
-      `${process.env.CHATWOOT_URL}/api/v1/inboxes/${process.env.INBOX_IDENTIFIER}/contacts/${phone}/messages`,
+      url,
       {
-        content: text,
-        message_type: "incoming"
+        content: text
       },
       {
         headers: {
@@ -44,7 +44,7 @@ app.post("/slicktext", async (req, res) => {
       }
     );
 
-    console.log("✅ Message sent to Chatwoot");
+    console.log("✅ Message sent to Chatwoot API Inbox");
     res.sendStatus(200);
 
   } catch (err) {
@@ -56,7 +56,6 @@ app.post("/slicktext", async (req, res) => {
   }
 });
 
-// 🔹 IMPORTANT: Railway PORT
 const PORT = process.env.PORT;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
