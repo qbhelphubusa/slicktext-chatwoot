@@ -19,35 +19,49 @@ function normalizePhone(phone) {
  * ==============================
  */
 app.post("/slicktext", async (req, res) => {
+  console.log("📩 Received payload:", JSON.stringify(req.body));
+
   try {
     const { event, data } = req.body;
 
-    if (event !== "message.received") return res.sendStatus(200);
+    if (event !== "message.received") {
+      return res.sendStatus(200);
+    }
 
     const phone = normalizePhone(data.from);
     const text = data.message;
 
-    console.log(`📩 SMS from ${phone}: ${text}`);
+    console.log(`📞 Incoming SMS from ${phone}: ${text}`);
 
     await axios.post(
       `${process.env.CHATWOOT_URL}/api/v1/accounts/${process.env.ACCOUNT_ID}/conversations`,
       {
         inbox_id: Number(process.env.INBOX_ID),
-        source_id: phone,
-        contact: { phone_number: phone },
-        message: { content: text }
+        source_id: `slicktext_${phone}`,   // ⭐ IMPORTANT LINE
+        contact: {
+          phone_number: phone
+        },
+        message: {
+          content: text
+        }
       },
       {
         headers: {
           api_access_token: process.env.CHATWOOT_TOKEN,
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          Accept: "application/json"
         }
       }
     );
 
+    console.log("✅ Sent to Chatwoot");
     res.sendStatus(200);
+
   } catch (err) {
-    console.error("❌ SlickText → Chatwoot:", err.response?.data || err.message);
+    console.error(
+      "❌ SlickText → Chatwoot error:",
+      err.response?.data || err.message
+    );
     res.sendStatus(500);
   }
 });
@@ -68,8 +82,10 @@ app.post("/chatwoot", async (req, res) => {
     );
     const text = req.body.content;
 
-    console.log(`📤 Reply to ${phone}: ${text}`);
+    console.log(`📤 Agent reply to ${phone}: ${text}`);
 
+    // Enable this in production
+    /*
     await axios.post(
       "https://api.slicktext.com/v1/messages/send",
       { to: phone, message: text },
@@ -80,14 +96,16 @@ app.post("/chatwoot", async (req, res) => {
         }
       }
     );
+    */
 
     res.sendStatus(200);
+
   } catch (err) {
-    console.error("❌ Chatwoot → SlickText:", err.response?.data || err.message);
+    console.error("❌ Chatwoot → SlickText error:", err.message);
     res.sendStatus(500);
   }
 });
 
-app.listen(process.env.PORT || 3000, () =>
-  console.log("🚀 Server running")
-);
+app.listen(process.env.PORT || 3000, () => {
+  console.log("🚀 Server running");
+});
