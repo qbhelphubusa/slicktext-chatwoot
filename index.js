@@ -4,7 +4,7 @@ import axios from "axios";
 const app = express();
 app.use(express.json());
 
-// Railway health check
+// Health check
 app.get("/", (req, res) => {
   res.status(200).send("OK");
 });
@@ -13,50 +13,56 @@ function normalizePhone(phone) {
   if (!phone) return null;
   let clean = phone.replace(/\D/g, "");
   if (!clean.startsWith("1")) clean = "1" + clean;
-  return clean; // ❗ no +
+  return `+${clean}`;
 }
 
 app.post("/slicktext", async (req, res) => {
-  console.log("📩 Received payload:", JSON.stringify(req.body));
+  console.log("📩 SlickText payload:", JSON.stringify(req.body, null, 2));
 
   try {
     const { event, data } = req.body;
-    if (event !== "message.received") {
+
+    // SlickText sends "incoming_message"
+    if (event !== "incoming_message") {
       return res.sendStatus(200);
     }
 
     const phone = normalizePhone(data.from);
-    const text = data.message;
+    const text = data.body;
 
-    console.log(`📞 Incoming SMS from ${phone}: ${text}`);
+    if (!phone || !text) {
+      console.log("⚠️ Missing phone or text");
+      return res.sendStatus(200);
+    }
 
-    const url = `${process.env.CHATWOOT_URL}/api/v1/inboxes/${process.env.INBOX_IDENTIFIER}/contacts/${encodeURIComponent(phone)}/messages`;
+    console.log(`📞 SMS from ${phone}: ${text}`);
+
+    const url = `${process.env.CHATWOOT_URL}/api/v1/inboxes/${process.env.INBOX_IDENTIFIER}/messages`;
 
     await axios.post(
       url,
       {
+        source_id: phone,   // REQUIRED
         content: text
       },
       {
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          api_access_token: process.env.CHATWOOT_API_TOKEN
         }
       }
     );
 
-    console.log("✅ Message sent to Chatwoot API Inbox");
+    console.log("✅ Message delivered to Chatwoot");
     res.sendStatus(200);
 
   } catch (err) {
-    console.error(
-      "❌ SlickText → Chatwoot error:",
-      err.response?.data || err.message
-    );
+    console.error("❌ Error:", err.response?.data || err.message);
     res.sendStatus(500);
   }
 });
 
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
