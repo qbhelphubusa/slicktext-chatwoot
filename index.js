@@ -1,3 +1,8 @@
+app.post("/test", (req, res) => {
+  console.log("✅ TEST ROUTE HIT");
+  res.send("TEST OK");
+});
+
 import express from "express";
 import axios from "axios";
 
