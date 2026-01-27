@@ -8,47 +8,38 @@ const app = express();
 app.use(express.json());
 
 /**
- * SlickText → Chatwoot
+ * SlickText → Chatwoot (API Inbox)
  */
 app.post("/slicktext", async (req, res) => {
   try {
     console.log("📩 SlickText Incoming:", req.body);
 
     const data = req.body?.data;
-    if (!data) {
-      console.log("❌ No data object");
+    if (!data) return res.status(200).send("OK");
+
+    // Only incoming SMS
+    if (data.last_message_direction !== "incoming") {
       return res.status(200).send("OK");
     }
 
     const messageText = data.last_message;
-    const direction = data.last_message_direction;
     const contactId = data._contact_id;
-
-    // Only incoming SMS
-    if (direction !== "incoming") {
-      return res.status(200).send("OK");
-    }
 
     if (!messageText || !contactId) {
       console.log("❌ Missing message or contact");
       return res.status(200).send("OK");
     }
 
-    // Fake sender mapping (important)
-    const senderIdentifier = `slicktext-${contactId}`;
+    // VERY IMPORTANT: unique sender
+    const sourceId = `slicktext-${contactId}`;
 
-    // Create message in Chatwoot
-    await axios.post(
-      `${process.env.CHATWOOT_URL}/api/v1/accounts/${process.env.CHATWOOT_ACCOUNT_ID}/conversations`,
+    console.log("➡️ Sending message to Chatwoot…");
+
+    const response = await axios.post(
+      `${process.env.CHATWOOT_URL}/api/v1/accounts/${process.env.CHATWOOT_ACCOUNT_ID}/inboxes/${process.env.CHATWOOT_INBOX_ID}/messages`,
       {
-        inbox_id: Number(process.env.CHATWOOT_INBOX_ID),
-        source_id: senderIdentifier,
-        messages: [
-          {
-            content: messageText,
-            message_type: "incoming"
-          }
-        ]
+        content: messageText,
+        source_id: sourceId
       },
       {
         headers: {
@@ -57,10 +48,15 @@ app.post("/slicktext", async (req, res) => {
       }
     );
 
-    console.log("✅ Message sent to Chatwoot");
+    console.log("✅ Chatwoot response:", response.status);
     res.status(200).send("OK");
+
   } catch (err) {
-    console.error("🔥 Error:", err?.response?.data || err.message);
+    console.error(
+      "🔥 Chatwoot Error:",
+      err?.response?.status,
+      err?.response?.data || err.message
+    );
     res.status(200).send("OK");
   }
 });
