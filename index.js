@@ -1,123 +1,126 @@
-import express from "express";
-import axios from "axios";
+const express = require("express");
+const bodyParser = require("body-parser");
+const axios = require("axios");
 
 const app = express();
-app.use(express.json());
 
-// =======================
-// ENV VARIABLES
-// =======================
-const CHATWOOT_TOKEN = process.env.CHATWOOT_TOKEN;
-const CHATWOOT_BASE_URL = process.env.CHATWOOT_BASE_URL || "https://app.chatwoot.com";
+// SlickText sends x-www-form-urlencoded
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json());
 
-// =======================
-// HEALTH CHECK
-// =======================
-app.get("/", (req, res) => {
-  res.send("Chatwoot + SlickText webhook live 🚀");
-});
+const PORT = process.env.PORT || 3000;
 
-// =======================
-// CHATWOOT WEBHOOK
-// URL: /chatwoot
-// =======================
-app.post("/chatwoot", async (req, res) => {
-  const payload = req.body;
-
+/**
+ * ================================
+ * SlickText → Chatwoot
+ * Incoming SMS webhook
+ * ================================
+ */
+app.post("/slicktext", async (req, res) => {
   try {
-    // 🔁 Ignore outgoing messages (loop prevention)
-    if (payload.message_type !== "incoming") {
+    console.log("📩 SlickText Incoming:", req.body);
+
+    // SlickText typical fields
+    const from = req.body.from || req.body.phone || req.body.From;
+    const text = req.body.text || req.body.message || req.body.body;
+
+    if (!from || !text) {
+      console.log("❌ Missing from/text");
       return res.sendStatus(200);
     }
 
-    const messageText = payload.content || "";
-    const conversationId = payload.conversation.id;
-    const accountId = payload.account.id;
-
-    // ✨ Default slick reply
-    let reply = `👋 *Welcome!*
-
-Thanks for contacting us 😊  
-How can we help you today?
-
-1️⃣ Sales & Pricing  
-2️⃣ Support  
-3️⃣ General Question  
-
-Reply with a number 👇`;
-
-    const lowerMsg = messageText.toLowerCase().trim();
-
-    if (lowerMsg.includes("price") || lowerMsg.includes("pricing")) {
-      reply = `💰 *Pricing Information*
-
-Our pricing depends on your needs.
-Please share:
-• Service required
-• Timeline
-• Budget range`;
-    } else if (lowerMsg === "1") {
-      reply = `📞 *Sales Team*
-
-Great choice!
-Please share:
-• Company name
-• Requirement summary`;
-    } else if (lowerMsg === "2") {
-      reply = `🛠 *Support*
-
-Please describe your issue in detail.
-Screenshots are welcome 👍`;
-    } else if (lowerMsg === "3") {
-      reply = `ℹ️ *General Inquiry*
-
-Sure! Please tell us your question 😊`;
-    }
-
-    // 🚀 Send reply to Chatwoot
+    // Create / send message to Chatwoot
     await axios.post(
-      `${CHATWOOT_BASE_URL}/api/v1/accounts/${accountId}/conversations/${conversationId}/messages`,
-      { content: reply },
+      `${process.env.CHATWOOT_URL}/api/v1/accounts/${process.env.CHATWOOT_ACCOUNT_ID}/conversations`,
+      {
+        source_id: from,
+        inbox_id: process.env.CHATWOOT_INBOX_ID,
+        messages: [
+          {
+            content: text,
+            message_type: "incoming"
+          }
+        ]
+      },
       {
         headers: {
-          api_access_token: CHATWOOT_TOKEN,
+          api_access_token: process.env.CHATWOOT_API_KEY,
           "Content-Type": "application/json"
         }
       }
     );
 
+    console.log("✅ Message sent to Chatwoot");
     res.sendStatus(200);
   } catch (error) {
-    console.error("Chatwoot webhook error:", error.message);
+    console.error("🔥 SlickText → Chatwoot Error:", error.response?.data || error.message);
     res.sendStatus(500);
   }
 });
 
-// =======================
-// SLICKTEXT WEBHOOK
-// URL: /slicktext
-// =======================
-app.post("/slicktext", async (req, res) => {
+/**
+ * ================================
+ * Chatwoot → SlickText
+ * Outgoing agent reply webhook
+ * ================================
+ */
+app.post("/chatwoot", async (req, res) => {
   try {
-    // SlickText incoming SMS payload
-    const phone = req.body.from;
-    const text = req.body.message;
+    console.log("📤 Chatwoot Event:", req.body);
 
-    console.log("📩 SlickText Incoming SMS:", phone, text);
+    const message = req.body.message;
 
-    // (Future: yahan SMS ko Chatwoot me push kar sakte ho)
+    // Only send outgoing agent messages
+    if (!message || message.message_type !== "outgoing") {
+      return res.sendStatus(200);
+    }
 
+    const phone =
+      req.body.conversation?.contact?.phone_number ||
+      req.body.conversation?.contact?.identifier;
+
+    const text = message.content;
+
+    if (!phone || !text) {
+      console.log("❌ Missing phone/text");
+      return res.sendStatus(200);
+    }
+
+    // Send SMS via SlickText API
+    await axios.post(
+      "https://api.slicktext.com/v1/messages",
+      {
+        to: phone,
+        message: text
+      },
+      {
+        auth: {
+          username: process.env.SLICKTEXT_PUBLIC_KEY,
+          password: process.env.SLICKTEXT_PRIVATE_KEY
+        },
+        headers: {
+          "Content-Type": "application/json"
+        }
+      }
+    );
+
+    console.log("✅ SMS sent via SlickText");
     res.sendStatus(200);
   } catch (error) {
-    console.error("SlickText webhook error:", error.message);
+    console.error("🔥 Chatwoot → SlickText Error:", error.response?.data || error.message);
     res.sendStatus(500);
   }
 });
 
-// =======================
-// START SERVER (Railway)
-// =======================
-const PORT = process.env.PORT || 3000;
+/**
+ * ================================
+ * Health check
+ * ================================
+ */
+app.get("/", (req, res) => {
+  res.send("🚀 SlickText ↔ Chatwoot webhook running");
+});
+
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
