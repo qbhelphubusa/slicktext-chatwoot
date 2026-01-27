@@ -4,7 +4,7 @@ const axios = require("axios");
 
 const app = express();
 
-// SlickText sends x-www-form-urlencoded
+// SlickText sends form-data
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
@@ -12,25 +12,59 @@ const PORT = process.env.PORT || 3000;
 
 /**
  * ================================
- * SlickText → Chatwoot
- * Incoming SMS webhook
+ * CONFIG
+ * ================================
+ */
+const AUTO_REPLY_ENABLED = true; // 🔁 bot on/off
+const OFFICE_START = 10; // 10 AM
+const OFFICE_END = 19;   // 7 PM
+
+/**
+ * ================================
+ * HELPERS
+ * ================================
+ */
+function isOfficeOpen() {
+  const hour = new Date().getHours();
+  return hour >= OFFICE_START && hour < OFFICE_END;
+}
+
+/**
+ * ================================
+ * HEALTH CHECK
+ * ================================
+ */
+app.get("/", (req, res) => {
+  res.send("🚀 SlickText ↔ Chatwoot webhook running (clean pro)");
+});
+
+/**
+ * ================================
+ * SLICKTEXT → CHATWOOT
+ * Incoming SMS
  * ================================
  */
 app.post("/slicktext", async (req, res) => {
   try {
     console.log("📩 SlickText Incoming:", req.body);
 
-    // SlickText typical fields
-    const from = req.body.from || req.body.phone || req.body.From;
-    const text = req.body.text || req.body.message || req.body.body;
+    const from =
+      req.body.from ||
+      req.body.phone ||
+      req.body.From;
+
+    const text =
+      req.body.text ||
+      req.body.message ||
+      req.body.body;
 
     if (!from || !text) {
       console.log("❌ Missing from/text");
       return res.sendStatus(200);
     }
 
-    // Create / send message to Chatwoot
-    await axios.post(
+    // 1️⃣ Push message into Chatwoot
+    const convo = await axios.post(
       `${process.env.CHATWOOT_URL}/api/v1/accounts/${process.env.CHATWOOT_ACCOUNT_ID}/conversations`,
       {
         source_id: from,
@@ -50,7 +84,31 @@ app.post("/slicktext", async (req, res) => {
       }
     );
 
-    console.log("✅ Message sent to Chatwoot");
+    console.log("✅ SMS pushed to Chatwoot");
+
+    // 2️⃣ Auto-reply (only if enabled & office closed)
+    if (AUTO_REPLY_ENABLED && !isOfficeOpen()) {
+      const reply = `👋 Thanks for reaching out!
+
+Our office hours are:
+🕙 10 AM – 7 PM
+
+An agent will reply as soon as we’re available 🙏`;
+
+      await axios.post(
+        `${process.env.CHATWOOT_URL}/api/v1/accounts/${process.env.CHATWOOT_ACCOUNT_ID}/conversations/${convo.data.id}/messages`,
+        { content: reply },
+        {
+          headers: {
+            api_access_token: process.env.CHATWOOT_API_KEY,
+            "Content-Type": "application/json"
+          }
+        }
+      );
+
+      console.log("🤖 Auto-reply sent (office closed)");
+    }
+
     res.sendStatus(200);
   } catch (error) {
     console.error("🔥 SlickText → Chatwoot Error:", error.response?.data || error.message);
@@ -60,17 +118,17 @@ app.post("/slicktext", async (req, res) => {
 
 /**
  * ================================
- * Chatwoot → SlickText
- * Outgoing agent reply webhook
+ * CHATWOOT → SLICKTEXT
+ * Agent Reply → SMS
  * ================================
  */
 app.post("/chatwoot", async (req, res) => {
   try {
-    console.log("📤 Chatwoot Event:", req.body);
+    console.log("📤 Chatwoot Event");
 
     const message = req.body.message;
 
-    // Only send outgoing agent messages
+    // 🔁 Only agent outgoing messages
     if (!message || message.message_type !== "outgoing") {
       return res.sendStatus(200);
     }
@@ -86,7 +144,6 @@ app.post("/chatwoot", async (req, res) => {
       return res.sendStatus(200);
     }
 
-    // Send SMS via SlickText API
     await axios.post(
       "https://api.slicktext.com/v1/messages",
       {
@@ -104,7 +161,7 @@ app.post("/chatwoot", async (req, res) => {
       }
     );
 
-    console.log("✅ SMS sent via SlickText");
+    console.log("✅ Agent reply sent via SMS");
     res.sendStatus(200);
   } catch (error) {
     console.error("🔥 Chatwoot → SlickText Error:", error.response?.data || error.message);
@@ -114,13 +171,9 @@ app.post("/chatwoot", async (req, res) => {
 
 /**
  * ================================
- * Health check
+ * START SERVER
  * ================================
  */
-app.get("/", (req, res) => {
-  res.send("🚀 SlickText ↔ Chatwoot webhook running");
-});
-
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🚀 Server live on port ${PORT}`);
 });
