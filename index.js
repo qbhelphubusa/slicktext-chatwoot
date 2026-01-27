@@ -8,17 +8,21 @@ const app = express();
 app.use(express.json());
 
 /**
- * SlickText → Chatwoot (API Inbox)
+ * SlickText → Chatwoot (API Inbox – CORRECT WAY)
  */
 app.post("/slicktext", async (req, res) => {
   try {
-    console.log("📩 SlickText Incoming:", req.body);
+    console.log("📩 SlickText Incoming:", JSON.stringify(req.body, null, 2));
 
     const data = req.body?.data;
-    if (!data) return res.status(200).send("OK");
+    if (!data) {
+      console.log("❌ No data object");
+      return res.status(200).send("OK");
+    }
 
     // Only incoming SMS
     if (data.last_message_direction !== "incoming") {
+      console.log("↩️ Outgoing message ignored");
       return res.status(200).send("OK");
     }
 
@@ -26,20 +30,26 @@ app.post("/slicktext", async (req, res) => {
     const contactId = data._contact_id;
 
     if (!messageText || !contactId) {
-      console.log("❌ Missing message or contact");
+      console.log("❌ Missing messageText or contactId");
       return res.status(200).send("OK");
     }
 
-    // VERY IMPORTANT: unique sender
+    // UNIQUE sender for API inbox (MOST IMPORTANT)
     const sourceId = `slicktext-${contactId}`;
 
-    console.log("➡️ Sending message to Chatwoot…");
+    console.log("➡️ Creating conversation in Chatwoot…");
 
     const response = await axios.post(
-      `${process.env.CHATWOOT_URL}/api/v1/accounts/${process.env.CHATWOOT_ACCOUNT_ID}/inboxes/${process.env.CHATWOOT_INBOX_ID}/messages`,
+      `${process.env.CHATWOOT_URL}/api/v1/accounts/${process.env.CHATWOOT_ACCOUNT_ID}/conversations`,
       {
-        content: messageText,
-        source_id: sourceId
+        inbox_id: Number(process.env.CHATWOOT_INBOX_ID),
+        source_id: sourceId,
+        messages: [
+          {
+            content: messageText,
+            message_type: "incoming"
+          }
+        ]
       },
       {
         headers: {
@@ -48,7 +58,7 @@ app.post("/slicktext", async (req, res) => {
       }
     );
 
-    console.log("✅ Chatwoot response:", response.status);
+    console.log("✅ Chatwoot OK:", response.status);
     res.status(200).send("OK");
 
   } catch (err) {
@@ -63,7 +73,7 @@ app.post("/slicktext", async (req, res) => {
 
 app.get("/", (_, res) => res.send("Running"));
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () =>
-  console.log(`🚀 Server running on ${PORT}`)
-);
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on ${PORT}`);
+});
