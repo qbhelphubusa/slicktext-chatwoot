@@ -4,21 +4,28 @@ import axios from "axios";
 const app = express();
 app.use(express.json());
 
-// ENV variables (Railway se aayenge)
+// =======================
+// ENV VARIABLES
+// =======================
 const CHATWOOT_TOKEN = process.env.CHATWOOT_TOKEN;
 const CHATWOOT_BASE_URL = process.env.CHATWOOT_BASE_URL || "https://app.chatwoot.com";
 
-// Health check
+// =======================
+// HEALTH CHECK
+// =======================
 app.get("/", (req, res) => {
-  res.send("Chatwoot webhook live 🚀");
+  res.send("Chatwoot + SlickText webhook live 🚀");
 });
 
-// Webhook endpoint
-app.post("/webhook", async (req, res) => {
+// =======================
+// CHATWOOT WEBHOOK
+// URL: /chatwoot
+// =======================
+app.post("/chatwoot", async (req, res) => {
   const payload = req.body;
 
   try {
-    // 🔁 Outgoing messages ignore (loop prevention)
+    // 🔁 Ignore outgoing messages (loop prevention)
     if (payload.message_type !== "incoming") {
       return res.sendStatus(200);
     }
@@ -27,7 +34,7 @@ app.post("/webhook", async (req, res) => {
     const conversationId = payload.conversation.id;
     const accountId = payload.account.id;
 
-    // ✨ Slick default reply
+    // ✨ Default slick reply
     let reply = `👋 *Welcome!*
 
 Thanks for contacting us 😊  
@@ -39,42 +46,35 @@ How can we help you today?
 
 Reply with a number 👇`;
 
-    // 🔍 Simple keyword logic
-    const lowerMsg = messageText.toLowerCase();
+    const lowerMsg = messageText.toLowerCase().trim();
 
     if (lowerMsg.includes("price") || lowerMsg.includes("pricing")) {
       reply = `💰 *Pricing Information*
 
 Our pricing depends on your needs.
-Please tell us:
+Please share:
 • Service required
 • Timeline
 • Budget range`;
-    }
-
-    if (lowerMsg === "1") {
+    } else if (lowerMsg === "1") {
       reply = `📞 *Sales Team*
 
-Great! Our sales team will contact you shortly.
-Meanwhile, please share:
+Great choice!
+Please share:
 • Company name
 • Requirement summary`;
-    }
-
-    if (lowerMsg === "2") {
+    } else if (lowerMsg === "2") {
       reply = `🛠 *Support*
 
 Please describe your issue in detail.
 Screenshots are welcome 👍`;
-    }
-
-    if (lowerMsg === "3") {
+    } else if (lowerMsg === "3") {
       reply = `ℹ️ *General Inquiry*
 
 Sure! Please tell us your question 😊`;
     }
 
-    // 🚀 Send message back to Chatwoot
+    // 🚀 Send reply to Chatwoot
     await axios.post(
       `${CHATWOOT_BASE_URL}/api/v1/accounts/${accountId}/conversations/${conversationId}/messages`,
       { content: reply },
@@ -88,12 +88,35 @@ Sure! Please tell us your question 😊`;
 
     res.sendStatus(200);
   } catch (error) {
-    console.error("Webhook error:", error.message);
+    console.error("Chatwoot webhook error:", error.message);
     res.sendStatus(500);
   }
 });
 
-// Railway PORT support
+// =======================
+// SLICKTEXT WEBHOOK
+// URL: /slicktext
+// =======================
+app.post("/slicktext", async (req, res) => {
+  try {
+    // SlickText incoming SMS payload
+    const phone = req.body.from;
+    const text = req.body.message;
+
+    console.log("📩 SlickText Incoming SMS:", phone, text);
+
+    // (Future: yahan SMS ko Chatwoot me push kar sakte ho)
+
+    res.sendStatus(200);
+  } catch (error) {
+    console.error("SlickText webhook error:", error.message);
+    res.sendStatus(500);
+  }
+});
+
+// =======================
+// START SERVER (Railway)
+// =======================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
